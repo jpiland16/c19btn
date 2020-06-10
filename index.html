@@ -476,7 +476,7 @@
 				}
 
 				o.Update = "COVID-19 Data for " + data.location.replace(",",", ");
-				o.TCstatement = "As of <b>" + data.lastUpdate.substring(0,data.lastUpdate.length - 1) + ", " + specLoc + "</b> has had <b>" + data.TotalCases.value + " </b> cases of COVID-19. This is the <b>" + getNumWithSuffix(data.TotalCases.rankUS) + " most </b> of all " + (isCounty ? "counties" : "states") + " in the United States" + (isCounty? ", and the <b>" + getNumWithSuffix(data.TotalCases.rankState) + " most </b> of all counties in " + state : "") + ".";
+				o.TCstatement = "As of <b>" + data.lastUpdate.substring(0,data.lastUpdate.length - 1) + ", " + specLoc + "</b> has had <b>" + data.TotalCases.value + " </b> cases of COVID-19. This is the <b>" + getNumWithSuffix(data.TotalCases.rankUS) + " highest </b> of all " + (isCounty ? "counties" : "states") + " in the United States" + (isCounty? ", and the <b>" + getNumWithSuffix(data.TotalCases.rankState) + " highest </b> of all counties in " + state : "") + ".";
 
 				var statementNames = ["Update","TCstatement","NewDay","New7Day","PercentDay","Percent7DA"];
 				var descriptors = {
@@ -489,7 +489,7 @@
 				for(var i = 2; i < statementNames.length; i++) {
 					var st = statementNames[i];
 					var isHighest = data[st].history.isHighest;
-					o[st] = "On " + data.lastUpdate.substring(0,data.lastUpdate.length - 1) + ", " + specLoc + " saw " + descriptors[st][0] + " <b>" + data[st].value  + descriptors[st][3] + ((st=="NewDay")? "</b>, from <b>" + data.TotalCases.yesterday + "</b> yesterday to <b>" + data.TotalCases.value + "</b> today" : "</b>") + ". This is the <b>" + getNumWithSuffix(data[st].rankUS) + " highest " + descriptors[st][1] + "</b> of all " + (isCounty ? "counties" : "states") + " in the United States" + (isCounty? ", and the <b>" + getNumWithSuffix(data[st].rankState) + " highest " + descriptors[st][1] + "</b> of all counties in " + state : "") + ". This " + descriptors[st][1] + " was the <b>" + (isHighest? "highest recorded</b> for " + specLoc + "." : getNumWithSuffix(data[st].history.rankInHX) + " most</b> for " + specLoc + ". (" + specLoc + "'s highest  " + descriptors[st][1] + " was on <b>" + data[st].history.highestHXdate + "</b> where it saw <b>" + descriptors[st][2] + data[st].history.highestHX + descriptors[st][3] +  ".</b>)");
+					o[st] = "On " + data.lastUpdate.substring(0,data.lastUpdate.length - 1) + ", " + specLoc + " saw " + descriptors[st][0] + " <b>" + data[st].value  + descriptors[st][3] + ((st=="NewDay")? "</b>, from <b>" + data.TotalCases.yesterday + "</b> yesterday to <b>" + data.TotalCases.value + "</b> today" : "</b>") + ". This is the <b>" + getNumWithSuffix(data[st].rankUS) + " highest " + descriptors[st][1] + "</b> of all " + (isCounty ? "counties" : "states") + " in the United States" + (isCounty? ", and the <b>" + getNumWithSuffix(data[st].rankState) + " highest " + descriptors[st][1] + "</b> of all counties in " + state : "") + ". This " + descriptors[st][1] + " was the <b>" + (isHighest? "highest recorded</b> for " + specLoc + "." : getNumWithSuffix(data[st].history.rankInHX) + " highest</b> for " + specLoc + ". (" + specLoc + "'s highest  " + descriptors[st][1] + " was on <b>" + data[st].history.highestHXdate + "</b> where it saw <b>" + descriptors[st][2] + data[st].history.highestHX + descriptors[st][3] +  ".</b>)");
 				}
 				
 

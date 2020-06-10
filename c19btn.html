@@ -1,0 +1,649 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html>
+    <head>
+        <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+        <title>COVID-19 Data Analysis by County</title>
+		
+        <script language="javascript" type="text/javascript">
+			
+			var JHUdata = [];
+			var coronaData = [];
+			var countyByState = {};
+			var stateData = {};
+			var currentType = "county";
+			var dataSelectType = "DaysSince5";
+			var dataShowType = "TotalCases";
+			var data = {};
+			var mostRecentUpdate;
+			var dayLabels;
+			
+			
+			function getParam(name) {
+				var paramString = decodeURI(window.location.href.match(/(?<=\?).+/));
+				var params = [];
+				if (paramString) { params = paramString.toString().split("&"); }
+				var parameterObject = {};
+				for(var i = 0; i < params.length; i++) {
+					var paramSplit = params[i].split("=");
+					if(paramSplit[1]) {
+						parameterObject[paramSplit[0]] = paramSplit[1];
+					}
+				}
+				if(parameterObject && parameterObject[name]) {
+					return parameterObject[name];
+				} else {
+					return undefined;	
+				}
+			}
+			
+		
+		// Use CORS-Anywhere to scrape a web page //
+			
+		//var cors_api_url = 'https://cors-anywhere.herokuapp.com/';
+  		var cors_api_url = "";
+		function doCORSRequest(options, printResult) {
+   		var x = new XMLHttpRequest();
+    		x.open(options.method, cors_api_url + options.url);
+   			x.onload = x.onerror = function() { printResult(
+    	   		//options.method + ' ' + options.url + '\n' +
+       			//x.status + ' ' + x.statusText + '\n\n' +
+       			(x.responseText || '')
+      		); };
+    		if (/^POST/i.test(options.method)) {
+      			x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    		}
+    		x.send(options.data);
+  		}
+
+  		function getData(url, functionWhenDone) {
+			//stat("Attempting to retrieve data from " + url);
+      		doCORSRequest({
+        		method: 'GET',
+        		url: url,
+      		}, function printResult(result) {
+        		functionWhenDone(result);
+      		});	  
+  		}
+  
+			function resolveCommas(array) { //Resolves commas for ONE LINE of a CSV file
+				showRegOut("Preparing to resolve commas in this array: " + array);
+				var newArray = new Array();
+				var currentIndex = 0;
+				var searchingForMatch = false;
+				for (var i = 0; i < array.length; i++) {
+					if (array[i]) {
+						var currentString = array[i];
+						if (currentString.search(/^"(?!")|^"""/) != -1) { //If #1  --  CHECK THE REGEX 
+							//newArray[currentIndex] = "";
+							showRegOut("The current string {" + currentString + "} and array index " + i + " begins with a double quote. Current array value for index " + currentIndex + " is " + newArray[currentIndex]);
+							currentString = currentString.substr(1);
+							if (currentString.search(/(?<!")"$|"""$/) != -1) { //If #1a
+								showRegOut("The current string {" + currentString + "} and array index " + i + " also ends with a double quote. Current array value for index " + currentIndex + " is " + newArray[currentIndex]);
+								currentString = currentString.substr(0,(currentString.length - 1));
+								newArray[currentIndex] = currentString.replace(/""/g,'"');
+								currentIndex += 1;
+							} else {
+								newArray[currentIndex] = currentString.replace(/""/g,'"');
+								showRegOut("The current string {" + currentString + "} and array index " + i + " does not have the end quote. Searching for a match... Current array value for index " + currentIndex + " is " + newArray[currentIndex]);
+								searchingForMatch = true;
+							}							
+						} else if(searchingForMatch) { //If #1b
+							if (currentString.search(/(?<!")"$|"""$/) != -1) { //If #1ba
+								showRegOut("The current string {" + currentString + "} and array index " + i + " has the end quote. Stopping search... Current array value for index " + currentIndex + " is " + newArray[currentIndex]);
+								currentString = currentString.substr(0,(currentString.length - 1));
+								newArray[currentIndex] = newArray[currentIndex] + "," + currentString.replace(/""/g,'"');
+								searchingForMatch = false;
+								currentIndex += 1;
+							} else {
+								showRegOut("The current string {" + currentString + "} and array index " + i + " does not have the end quote. Continuing the search... Current array value for index " + currentIndex + " is " + newArray[currentIndex]);
+								newArray[currentIndex] = newArray[currentIndex] + "," + currentString.replace(/""/g,'"');	
+							}
+						} else {
+							showRegOut("The current string {" + currentString + "} and array index " + i + " is not being searched. Current array value for index " + currentIndex + " is " + newArray[currentIndex]);
+							newArray[currentIndex] = currentString.replace(/""/g,'"');
+							currentIndex += 1;
+						}
+					} else {
+						currentIndex++;
+					}
+					showRegOut(newArray);
+				}
+				
+				return newArray;
+			}
+			
+			function showRegOut(text) {
+				//print(text);	
+			}
+			
+			
+			function checkParams() {
+				
+			}
+			
+			
+			function bodyLoaded() {
+				
+				checkParams();
+				
+				getData("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv", function dataLoaded(data) {
+					if(data) {
+						var currentState = ""; //(As in North Carolina)
+						JHUdata = data.split("\n");
+						var length = JHUdata.length - 1; //last line is blank
+						length = 3148; //Actually - line 3148 is the last "county" listing.
+						for(var i = 0; i < length; i++) {
+							coronaData[i] = [];
+							coronaData[i] = JHUdata[i].split(",")
+							coronaData[i] = resolveCommas(coronaData[i]);
+							
+							if(i > 0) {
+								var locationInfo = coronaData[i][10].split(",");
+								if(locationInfo[1][0] == " ") {
+									locationInfo[1] = locationInfo[1].substring(1);	
+								}
+								
+								var currentCounty = locationInfo[0];
+								
+								if(locationInfo[1] != currentState) {
+									currentState = locationInfo[1];
+									countyByState[currentState] = {};
+								}
+								
+								countyByState[currentState][currentCounty] = coronaData[i].slice(11);
+								
+								if(!stateData[currentState]) {
+									stateData[currentState] = [];
+								}
+								
+								for(var j = 0; j < countyByState[currentState][currentCounty].length; j++) {
+									var addCountyCases = Number(countyByState[currentState][currentCounty][j]);
+									stateData[currentState][j] = stateData[currentState][j] ? Number(stateData[currentState][j]) + addCountyCases : addCountyCases;
+								}
+								
+							}
+						}
+						var lastIndex = coronaData[0].length - 1;
+						mostRecentUpdate = coronaData[0][lastIndex];
+						dayLabels = coronaData[0].slice(11);
+						populateSelects();
+						analyzeData();
+
+					} else {
+						console.log("Data import failed.");	
+					}
+				} );
+			}
+						
+			function specialArray(array) { //Deals with two variables: (1) Whether we are getting all data or data after 5 cases, and (2) the type of data to show.
+				var newArray = [];
+				
+				switch(dataSelectType) {
+					case "DaysSince5":
+						var startIndex = 0;
+						for(var i = 0; i < array.length; i++) {
+							startIndex = i;
+							if(array[i] >= 5) {
+								break;
+							} 
+						}
+						newArray = array.slice(startIndex);
+						break;
+					case "All":
+						newArray = array;
+						break;
+						
+				}
+				
+				switch(dataShowType) {
+					case "TotalCases":
+						break;
+					case "NewDay":
+						newArray = getDiffs(newArray);
+						break;
+					case "New7Day":
+						newArray = get7DA(getDiffs(newArray));
+						break;
+					case "PercentDay":
+						newArray = getPercs(newArray);
+						break;
+					case "Percent7DA":
+						newArray = get7DA(getPercs(newArray));
+						break;
+						
+				}
+				
+				return newArray;	
+			}
+			
+			function getPercs(newArray) {
+				var differenceArray = [];
+				for(var i = 0; i < newArray.length; i++) {
+					if(i > 0) {
+						var last = newArray[i - 1];
+						if(last != 0) {
+							differenceArray[i] = Math.round((newArray[i] - last) / last * 10000) / 100;
+						} else {
+							differenceArray[i] = 0;	
+						}
+					} else {
+						differenceArray[0] = 0;	
+					}
+				}
+				return differenceArray;
+			}
+				
+			function getDiffs(newArray) {
+				var differenceArray = [];
+				for(var i = 0; i < newArray.length; i++) {
+					if(i > 0) {
+						differenceArray[i] = newArray[i] - newArray[i - 1];
+					} else {
+						differenceArray[0] = newArray[0];	
+					}
+				}
+				return differenceArray;
+			}
+			
+			function get7DA(array) {
+				var sdAVGarray = [];
+				for(var i = 0; i < array.length; i++) {
+					if(i < 6) {
+						var sum = 0;
+						for(var j = 0; j <= i; j++) {
+							sum += Number(array[j]);
+						}
+						var avg = sum / (i + 1);
+						sdAVGarray[i] = Math.round(avg * 100) / 100;
+					} else {
+						var sum = 0;
+						for(var j = 0; j < 7; j++) {
+							sum += Number(array[i - j]);
+						}
+						var avg = sum / 7;
+						sdAVGarray[i] = Math.round(avg * 100) / 100;
+					}
+				}
+				return sdAVGarray;
+			}
+			
+			
+			function getTopInState(state) {
+				var lastDataPoints = [];
+				//console.log(state);
+				if(state != "0") {
+				
+				var countyNames = Object.getOwnPropertyNames(countyByState[state]);
+				console.log("Note: Top data for states will not include counties where yesterday's cases are less than 5.");
+				for (var i = 0; i < countyNames.length; i++) {
+					var raw = countyByState[state][countyNames[i]];
+					var data = specialArray(raw);
+					var lastValue = 0;
+					if(specialArray && data[data.length - 1]) {
+						lastValue = data[data.length - 1];
+					}
+					if(raw[raw.length - 1] < 5) {
+						lastValue = 0;	
+					}
+					lastDataPoints[i] = {
+						value: lastValue,
+						state: state,
+						county: countyNames[i]
+					}
+				}
+				
+				lastDataPoints.sort(function(a,b){ return (b.value - a.value); }); //note: this is a reverse (high to low) sort.
+				
+				return lastDataPoints;
+					
+				}
+			}
+			
+			function getTopInUS() {
+				var lastDataPoints = [];
+				var stateNames = Object.getOwnPropertyNames(countyByState);
+				var allIndex = 0;
+				console.log("Note: Top data for US will not include counties where yesterday's cases are less than 10.");
+				
+				if(currentType == "county") {
+					currentlyShowing = [];
+					
+					for(var i = 0; i < stateNames.length; i++) {
+						var state = stateNames[i];
+						var countyNames = Object.getOwnPropertyNames(countyByState[state]);
+						for (var j = 0; j < countyNames.length; j++) {
+							var raw = countyByState[state][countyNames[j]];
+							var data = specialArray(raw);
+							var lastValue = 0;
+							if(data && data[data.length - 1]) {
+								lastValue = data[data.length - 1];
+							}
+							if(raw[raw.length - 1] < 10) {
+								lastValue = 0;	
+							}
+							lastDataPoints[allIndex] = {
+								value: lastValue,
+								state: state,
+								county: countyNames[j]
+							}
+							allIndex++
+						}
+					}
+					
+				} else {
+					currentlyShowingStates = [];
+					for(var i = 0; i < stateNames.length; i++) {
+						var state = stateNames[i];
+						var raw = stateData[state];
+						var data = specialArray(raw);
+						var lastValue = 0;
+						if(data && data[data.length - 1]) {
+							lastValue = data[data.length - 1];
+						}
+						if(raw[raw.length - 1] < 10) {
+							lastValue = 0;	
+						}
+						lastDataPoints[allIndex] = {
+							value: lastValue,
+							state: state
+						}
+						allIndex++
+					}	
+				}
+					
+				lastDataPoints.sort(function(a,b){ return (b.value - a.value); }); //note: this is a reverse (high to low) sort.
+				
+				return lastDataPoints;
+			}
+			
+			
+			function analyzeData() { 
+				var type = getParam("by");
+				var location = getParam("loc");
+				if(type == "state") {
+					if(location) {
+						data.type = type;
+						data.location = location;
+						data.lastUpdate = mostRecentUpdate;
+						if(stateData[location]) {
+							currentType = "state";
+
+							var array = stateData[location];
+							
+							dataShowType = "TotalCases";
+							data.TotalCases = {};
+							data.TotalCases.value = getLast(specialArray(array));
+							data.TotalCases.rankUS = getIndexPlusOne(getTopInUS(),location);
+							data.TotalCases.yesterday = getLast(specialArray(array.slice(0,array.length - 1)));
+							var FourTypes = ["NewDay","New7Day","PercentDay","Percent7DA"];
+							for ( var i = 0; i < 4; i++ ) {
+								dataShowType = FourTypes[i];
+								data[dataShowType] = {};
+								data[dataShowType].value = getLast(specialArray(array));
+								data[dataShowType].rankUS = getIndexPlusOne(getTopInUS(),location);
+								data[dataShowType].history = getHX(arrayToObj(specialArray(array)));
+							}
+							/*dataShowType = "NewDay";
+							data.NewDay = {};
+							data.NewDay.value = getLast(specialArray(array));
+							data.NewDay.rankUS = getIndexPlusOne(getTopInUS(),location);
+							data.NewDay.history = getHX(arrayToObj(specialArray(array)));
+							dataShowType = "New7Day"
+							data.New7Day = {};
+							data.New7Day.value = getLast(specialArray(array));
+							data.New7Day.rankUS = getIndexPlusOne(getTopInUS(),location);
+							data.New7Day.history = getHX(arrayToObj(specialArray(array)));
+							dataShowType = "PercentDay"
+							data.PercentDay = {};
+							data.PercentDay.value = getLast(specialArray(array));
+							data.PercentDay.rankUS = getIndexPlusOne(getTopInUS(),location);
+							data.PercentDay.history = getHX(arrayToObj(specialArray(array)));
+							dataShowType = "Percent7DA"
+							data.Percent7DA = {};
+							data.Percent7DA.value = getLast(specialArray(array));
+							data.Percent7DA.rankUS = getIndexPlusOne(getTopInUS(),location);
+							data.Percent7DA.history = getHX(arrayToObj(specialArray(array)));*/
+
+							showAnalysis();
+
+						} else { noDataFail() }
+					} else { paramFail() }
+				} else if(type == "county") {
+					if(location) {
+						var split = location.split(",");
+						var county, state;
+						if(split[1]) {
+							data.type = type;
+							data.location = location;
+							data.lastUpdate = mostRecentUpdate;
+							county = split[0];
+							state = split[1];
+							if(countyByState[state] && countyByState[state][county]) {
+								
+								currentType = "county";
+
+								var array = countyByState[state][county];
+								
+								dataShowType = "TotalCases";
+								data.TotalCases = {};
+								data.TotalCases.value = getLast(specialArray(array));
+								data.TotalCases.rankUS = getIndexPlusOne(getTopInUS(),state,county);
+								data.TotalCases.rankState = getIndexPlusOne(getTopInState(state),state,county);
+								data.TotalCases.yesterday = getLast(specialArray(array.slice(0,array.length - 1)));
+								var FourTypes = ["NewDay","New7Day","PercentDay","Percent7DA"];
+								for ( var i = 0; i < 4; i++ ) {
+									dataShowType = FourTypes[i];
+									data[dataShowType] = {};
+									data[dataShowType].value = getLast(specialArray(array));
+									data[dataShowType].rankUS = getIndexPlusOne(getTopInUS(),state,county);
+									data[dataShowType].rankState = getIndexPlusOne(getTopInState(state),state,county);
+									data[dataShowType].history = getHX(arrayToObj(specialArray(array)));
+								}
+								
+								showAnalysis();
+
+							} else { noDataFail() }
+						} else {
+							paramFail();
+						}
+					} else { paramFail() }
+				} else { paramFail() }
+			}
+			
+			function paramFail() {
+				document.getElementById("select").style.display = "block";
+			}
+
+			function noDataFail() {
+				console.log("Analysis failed - location could not be found.");
+			}
+
+			function showAnalysis() {
+				console.log(data);
+				//document.body.innerText = JSON.stringify(data);
+
+				var o = {};
+				var outputText = "";
+				var specLoc;
+				var state;
+				var isCounty = (data.type == "county")
+				if(isCounty) {
+					specLoc = data.location.split(",")[0];
+					state = data.location.split(",")[1];
+				} else {
+					specLoc = data.location;
+				}
+
+				o.Update = "COVID-19 Data for " + data.location.replace(",",", ");
+				o.TCstatement = "As of <b>" + data.lastUpdate.substring(0,data.lastUpdate.length - 1) + ", " + specLoc + "</b> has had <b>" + data.TotalCases.value + " </b> cases of COVID-19. This is the <b>" + getNumWithSuffix(data.TotalCases.rankUS) + " most </b> of all " + (isCounty ? "counties" : "states") + " in the United States" + (isCounty? ", and the <b>" + getNumWithSuffix(data.TotalCases.rankState) + " most </b> of all counties in " + state : "") + ".";
+
+				var statementNames = ["Update","TCstatement","NewDay","New7Day","PercentDay","Percent7DA"];
+				var descriptors = {
+					NewDay: ["an increase of","increase",""," new cases"],
+					New7Day: ["an average increase of","7-day average",""," cases per day in the previous 7 days"],
+					PercentDay: ["an increase in cases of","percent increase","growth of ","%"],
+					Percent7DA: ["an average increase in cases of","7-day average","average growth of ","% per day in the previous 7 days"]
+				}
+
+				for(var i = 2; i < statementNames.length; i++) {
+					var st = statementNames[i];
+					var isHighest = data[st].history.isHighest;
+					o[st] = "On " + data.lastUpdate.substring(0,data.lastUpdate.length - 1) + ", " + specLoc + " saw " + descriptors[st][0] + " <b>" + data[st].value  + descriptors[st][3] + ((st=="NewDay")? "</b>, from <b>" + data.TotalCases.yesterday + "</b> yesterday to <b>" + data.TotalCases.value + "</b> today" : "</b>") + ". This is the <b>" + getNumWithSuffix(data[st].rankUS) + " highest " + descriptors[st][1] + "</b> of all " + (isCounty ? "counties" : "states") + " in the United States" + (isCounty? ", and the <b>" + getNumWithSuffix(data[st].rankState) + " highest " + descriptors[st][1] + "</b> of all counties in " + state : "") + ". This " + descriptors[st][1] + " was the <b>" + (isHighest? "highest recorded</b> for " + specLoc + "." : getNumWithSuffix(data[st].history.rankInHX) + " most</b> for " + specLoc + ". (" + specLoc + "'s highest  " + descriptors[st][1] + " was on <b>" + data[st].history.highestHXdate + "</b> where it saw <b>" + descriptors[st][2] + data[st].history.highestHX + descriptors[st][3] +  ".</b>)");
+				}
+				
+
+				for(var i = 0; i < statementNames.length; i++) {
+					outputText += o[statementNames[i]] + "<br/><br/>";
+				}
+
+				document.body.innerHTML = outputText;
+			}
+
+			function getNumWithSuffix(num) {
+				var suffix = "th";
+				var lastDigit = num % 10;
+				var last2Digits = num % 100;
+				var isTeen = (last2Digits < 20 && last2Digits > 10);
+				if (lastDigit == 1 && !isTeen) {
+					suffix = "st";
+				} else if (lastDigit == 2 && !isTeen) {
+					suffix = "nd";
+				} else if (lastDigit == 3 && !isTeen) {
+					suffix = "rd";
+				}
+				if(num == 1) { return ""; }
+				return num + suffix;
+			}
+
+			function getLast(array) {
+				return array[array.length - 1];
+			}
+			
+			function getIndexPlusOne(array,searchState,searchCounty) {
+				for(var i = 0; i < array.length; i++) {
+					if(array[i].state == searchState) {
+						if(searchCounty && array[i].county == searchCounty) {
+							return i + 1;
+						} else if(!searchCounty) {
+							return i + 1;
+						}
+					}
+				}
+			}
+
+			function getHX(array) {
+				var objToReturn = {};
+				array.sort(function(a,b) { return (b.value - a.value)});
+				//console.log(array);
+				var indexFromEnd = array.length - array[0].myIndex;
+				var date = dayLabels[dayLabels.length - indexFromEnd];
+				var rankInHX;
+				for(var i = 0; i < array.length; i++) {
+					if(array[i].myIndex == (array.length - 1)) { //find the element which was last
+						rankInHX = i + 1;
+						break;
+					}
+				}
+				if(rankInHX == 1) {
+					objToReturn.isHighest = true;
+				} else {
+					objToReturn.isHighest = false;
+					objToReturn.rankInHX = rankInHX;
+					objToReturn.highestHX = array[0].value;
+					objToReturn.highestHXdate = date;
+				}
+
+				return objToReturn;
+			}
+
+			function arrayToObj(array) {
+				var objects = [];
+				for (var i = 0; i < array.length; i++) {
+					objects[i] = {};
+					objects[i].value = array[i];
+					objects[i].myIndex = i;
+				}
+				return objects;
+			}
+			
+			function populateSelects() {
+				var stateSelect = document.getElementById("state");
+				var disabledOption = document.createElement("option");
+				disabledOption.innerText = "Choose a state...";
+				disabledOption.selected = true;
+				disabledOption.disabled = true;
+				disabledOption.value = 0;
+				stateSelect.appendChild(disabledOption);
+				
+				
+				document.getElementById("state").disabled = false;
+				var stateNames = Object.getOwnPropertyNames(countyByState);
+				for (var i = 0; i < stateNames.length; i++) {
+					
+					var stateOption = document.createElement("option");
+					stateOption.innerText = stateNames[i];
+					stateOption.value = stateNames[i];
+					stateSelect.appendChild(stateOption);
+									
+				}
+				stateSelect.disabled = false;
+			}
+			
+			function changeState() {
+				var stateSelect = document.getElementById("state");
+				var disabledOption = document.createElement("option");
+				var countySelect = document.getElementById("county");
+				countySelect.innerHTML = "";
+				disabledOption.innerText = "Choose a county/territory (optional)";
+				disabledOption.selected = true;
+				disabledOption.disabled = true;
+				disabledOption.value = 0;
+				countySelect.appendChild(disabledOption);
+				
+				var selectedState = document.getElementById("state").value;
+				
+				var stateObject = countyByState[selectedState];
+				var countyNames = Object.getOwnPropertyNames(stateObject);
+				
+				for (var i = 0; i < countyNames.length; i++) {
+					
+					var countyOption = document.createElement("option");
+					countyOption.innerText = countyNames[i];
+					countyOption.value = countyNames[i];
+					countySelect.appendChild(countyOption);
+									
+				}
+				countySelect.disabled = false;
+			}
+
+			function selectLoc() {
+				var stateSelect = document.getElementById("state");
+				var countySelect = document.getElementById("county");
+				var by = (countySelect.value == 0) ? 'state' : 'county';
+				if(stateSelect.value != 0) {
+					window.location.href = window.location.href + "?by=" + by + "&loc=" + (by == "county" ? countySelect.value + ",":"") + stateSelect.value;
+				}
+			}
+
+        </script>     
+		
+		<style>
+		</style>
+		
+    </head>
+
+    <body onload="bodyLoaded()">
+		<div id="select" style="display: none">
+			No valid parameters were found.<br/><br/>
+			<select id="state" onchange="changeState()"  title="Select a state to add to graph." disabled>
+				<option disabled selected>Please wait...</option>
+			</select>
+			<select id="county" title="Select a county to add to graph." disabled>
+				<option disabled selected value="0">Select a state first.</option>
+			</select><br/><br/>
+			<button onclick="selectLoc()">View Latest information</button>
+		</div>
+    </body>
+
+</html>

@@ -14,19 +14,13 @@
 			var currentType = "county";
 			var dataSelectType = "DaysSince5";
 			var dataShowType = "TotalCases";
-			var dataWasImported = false;
 			var data = {};
 			var mostRecentUpdate;
 			var dayLabels;
 			
 			
 			
-			function popStateFunction() {
-				console.log("hello")
-				if(dataWasImported) {
-					analyzeData();
-				}
-			}
+			
 			
 			function getParam(name) {
 				var paramString = decodeURI(window.location.href.match(/(?<=\?).+/));
@@ -172,7 +166,6 @@
 							mostRecentUpdate = mostRecentUpdate.substring(0,mostRecentUpdate.length - 1);
 						}
 						dayLabels = coronaData[0].slice(11);
-						dataWasImported = true;
 						populateSelects();
 						analyzeData();
 
@@ -181,7 +174,6 @@
 						document.getElementById("output").innerText = "Data was not imported...results could not be shown. Refresh this page to try again."
 					}
 				} );
-				window.addEventListener("popstate",popStateFunction);
 			}
 						
 			function specialArray(array) { //Deals with two variables: (1) Whether we are getting all data or data after 5 cases, and (2) the type of data to show.
@@ -629,7 +621,9 @@
 				var countySelect = document.getElementById("county");
 				var by = (countySelect.value == 0) ? 'state' : 'county';
 				if(stateSelect.value != 0) {
-					window.history.pushState("Change Location","",window.location.href.split("?")[0] + "?by=" + by + "&loc=" + (by == "county" ? countySelect.value + ",":"") + stateSelect.value);
+					var newURL = window.location.href.split("?")[0] + "?by=" + by + "&loc=" + (by == "county" ? countySelect.value + ",":"") + stateSelect.value;
+					window.history.replaceState("Change Location","Change Location",newURL);
+					analyzeData();
 				}
 			}
 
@@ -642,6 +636,7 @@
 
     <body onload="bodyLoaded()">
 		<div id="select">
+			Select a state and/or county to view the latest information.<br/><br/>
 			<select id="state" onchange="changeState()"  title="Choose a state" disabled>
 				<option disabled selected>Please wait...</option>
 			</select>

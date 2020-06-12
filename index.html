@@ -14,10 +14,19 @@
 			var currentType = "county";
 			var dataSelectType = "DaysSince5";
 			var dataShowType = "TotalCases";
+			var dataWasImported = false;
 			var data = {};
 			var mostRecentUpdate;
 			var dayLabels;
 			
+			
+			
+			function popStateFunction() {
+				console.log("hello")
+				if(dataWasImported) {
+					analyzeData();
+				}
+			}
 			
 			function getParam(name) {
 				var paramString = decodeURI(window.location.href.match(/(?<=\?).+/));
@@ -118,14 +127,7 @@
 			}
 			
 			
-			function checkParams() {
-				
-			}
-			
-			
 			function bodyLoaded() {
-				
-				checkParams();
 				
 				getData("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv", function dataLoaded(data) {
 					if(data) {
@@ -166,14 +168,20 @@
 						}
 						var lastIndex = coronaData[0].length - 1;
 						mostRecentUpdate = coronaData[0][lastIndex];
+						if(mostRecentUpdate.substr(-1) == " ") {
+							mostRecentUpdate = mostRecentUpdate.substring(0,mostRecentUpdate.length - 1);
+						}
 						dayLabels = coronaData[0].slice(11);
+						dataWasImported = true;
 						populateSelects();
 						analyzeData();
 
 					} else {
 						console.log("Data import failed.");	
+						document.getElementById("output").innerText = "Data was not imported...results could not be shown. Refresh this page to try again."
 					}
 				} );
+				window.addEventListener("popstate",popStateFunction);
 			}
 						
 			function specialArray(array) { //Deals with two variables: (1) Whether we are getting all data or data after 5 cases, and (2) the type of data to show.
@@ -266,8 +274,7 @@
 					}
 				}
 				return sdAVGarray;
-			}
-			
+			}			
 			
 			function getTopInState(state) {
 				var lastDataPoints = [];
@@ -460,7 +467,7 @@
 			}
 
 			function showAnalysis() {
-				console.log(data);
+				//console.log(data);
 				//document.body.innerText = JSON.stringify(data);
 
 				var o = {};
@@ -476,7 +483,7 @@
 				}
 
 				o.Update = "COVID-19 Data for " + data.location.replace(",",", ");
-				o.TCstatement = "As of <b>" + data.lastUpdate.substring(0,data.lastUpdate.length - 1) + ", " + specLoc + "</b> has had <b>" + data.TotalCases.value + " </b> cases of COVID-19. This is the <b>" + getNumWithSuffix(data.TotalCases.rankUS) + " highest </b> of all " + (isCounty ? "counties" : "states") + " in the United States" + (isCounty? ", and the <b>" + getNumWithSuffix(data.TotalCases.rankState) + " highest </b> of all counties in " + state : "") + ".";
+				o.TCstatement = "As of <b>" + data.lastUpdate + ", " + specLoc + "</b> has had <b>" + data.TotalCases.value + " </b> cases of COVID-19. This is the <b>" + getNumWithSuffix(data.TotalCases.rankUS) + " highest </b> of all " + (isCounty ? "counties" : "states") + " in the United States" + (isCounty? ", and the <b>" + getNumWithSuffix(data.TotalCases.rankState) + " highest </b> of all counties in " + state : "") + ".";
 
 				var statementNames = ["Update","TCstatement","NewDay","New7Day","PercentDay","Percent7DA"];
 				var descriptors = {
@@ -489,7 +496,7 @@
 				for(var i = 2; i < statementNames.length; i++) {
 					var st = statementNames[i];
 					var isHighest = data[st].history.isHighest;
-					o[st] = "On " + data.lastUpdate.substring(0,data.lastUpdate.length - 1) + ", " + specLoc + " saw " + descriptors[st][0] + " <b>" + data[st].value  + descriptors[st][3] + ((st=="NewDay")? "</b>, from <b>" + data.TotalCases.yesterday + "</b> yesterday to <b>" + data.TotalCases.value + "</b> today" : "</b>") + ". This is the <b>" + getNumWithSuffix(data[st].rankUS) + " highest " + descriptors[st][1] + "</b> of all " + (isCounty ? "counties" : "states") + " in the United States" + (isCounty? ", and the <b>" + getNumWithSuffix(data[st].rankState) + " highest " + descriptors[st][1] + "</b> of all counties in " + state : "") + ". This " + descriptors[st][1] + " was the <b>" + (isHighest? "highest recorded</b> for " + specLoc + "." : getNumWithSuffix(data[st].history.rankInHX) + " highest</b> for " + specLoc + ". (" + specLoc + "'s highest  " + descriptors[st][1] + " was on <b>" + data[st].history.highestHXdate + "</b> where it saw <b>" + descriptors[st][2] + data[st].history.highestHX + descriptors[st][3] +  ".</b>)");
+					o[st] = "On " + data.lastUpdate + ", " + specLoc + " saw " + descriptors[st][0] + " <b>" + data[st].value  + descriptors[st][3] + ((st=="NewDay")? "</b>, from <b>" + data.TotalCases.yesterday + "</b> yesterday to <b>" + data.TotalCases.value + "</b> today" : "</b>") + ". This is the <b>" + getNumWithSuffix(data[st].rankUS) + " highest " + descriptors[st][1] + "</b> of all " + (isCounty ? "counties" : "states") + " in the United States" + (isCounty? ", and the <b>" + getNumWithSuffix(data[st].rankState) + " highest " + descriptors[st][1] + "</b> of all counties in " + state : "") + ". This " + descriptors[st][1] + " was the <b>" + (isHighest? "highest recorded</b> for " + specLoc + "." : getNumWithSuffix(data[st].history.rankInHX) + " highest</b> for " + specLoc + ". (" + specLoc + "'s highest  " + descriptors[st][1] + " was on <b>" + data[st].history.highestHXdate + "</b> where it saw <b>" + descriptors[st][2] + data[st].history.highestHX + descriptors[st][3] +  ".</b>)");
 				}
 				
 
@@ -497,7 +504,7 @@
 					outputText += o[statementNames[i]] + "<br/><br/>";
 				}
 
-				document.body.innerHTML = outputText;
+				document.getElementById("output").innerHTML = outputText;
 			}
 
 			function getNumWithSuffix(num) {
@@ -622,7 +629,7 @@
 				var countySelect = document.getElementById("county");
 				var by = (countySelect.value == 0) ? 'state' : 'county';
 				if(stateSelect.value != 0) {
-					window.location.href = window.location.href + "?by=" + by + "&loc=" + (by == "county" ? countySelect.value + ",":"") + stateSelect.value;
+					window.history.pushState("Change Location","",window.location.href.split("?")[0] + "?by=" + by + "&loc=" + (by == "county" ? countySelect.value + ",":"") + stateSelect.value);
 				}
 			}
 
@@ -634,16 +641,17 @@
     </head>
 
     <body onload="bodyLoaded()">
-		<div id="select" style="display: none">
-			No valid parameters were found.<br/><br/>
-			<select id="state" onchange="changeState()"  title="Select a state to add to graph." disabled>
+		<div id="select">
+			<select id="state" onchange="changeState()"  title="Choose a state" disabled>
 				<option disabled selected>Please wait...</option>
 			</select>
-			<select id="county" title="Select a county to add to graph." disabled>
+			<select id="county" title="Choose a county" disabled>
 				<option disabled selected value="0">Select a state first.</option>
 			</select><br/><br/>
-			<button onclick="selectLoc()">View Latest information</button>
+			<button onclick="selectLoc()">View Latest information</button><br/><br/>
+			
 		</div>
+		<div id="output"></div>
     </body>
 
 </html>
